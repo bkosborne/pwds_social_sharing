@@ -1,0 +1,143 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ *
+ * Add menu route used to edit our settings.
+ */
+function pwds_social_sharing_menu() {
+  $items['admin/config/media/social_sharing'] = array(
+    'title' => 'Social Sharing',
+    'description' => 'Settings for Social Sharing',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('_pwds_social_sharing_settings'),
+    'access arguments' => array('administer site configuration'),
+  );
+  $items['admin/config/media/social_sharing/settings'] = array(
+    'title' => 'Social Sharing',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+  return $items;
+}
+
+/**
+ * Settings form for configuring the module.
+ *
+ * We present users the option to enable or disable social sharing for
+ * news and events content types.
+ */
+function _pwds_social_sharing_settings() {
+  $content_types = array(
+    'news' => t('News'),
+    'events' => t('Events'),
+  );
+
+  $form = array();
+  $form['markup'] = array(
+    '#markup' => "<p>Select which content types should have social sharing buttons.</p>",
+  );
+  foreach ($content_types as $machine_name => $label) {
+    $form['pwds_social_sharing_' . $machine_name] = array(
+      '#type' => 'checkbox',
+      '#title' => $label,
+      '#default_value' => variable_get('pwds_social_sharing_' . $machine_name, TRUE),
+    );
+  }
+
+  return system_settings_form($form);
+}
+
+/**
+ * Implements hook_node_view().
+ *
+ * Add opengraph meta tags to nodes that have social sharing enabled.
+ */
+function pwds_social_sharing_node_view($node, $view_mode, $langcode) {
+  if ($view_mode !== 'full' || !_pwds_social_sharing_is_enabled($node->type)) {
+    return;
+  }
+
+  _pwds_social_sharing_add_og_meta_tag('site_name', variable_get('site_name'));
+  _pwds_social_sharing_add_og_meta_tag('type', 'article');
+  _pwds_social_sharing_add_og_meta_tag('title', check_plain($node->title));
+  _pwds_social_sharing_add_og_meta_tag('url', url(drupal_get_path_alias(), array('absolute' => TRUE)));
+
+  $body_field = field_view_field('node', $node, 'body', array('type' => 'text_plain'));
+  if (!empty($body_field)) {
+    _pwds_social_sharing_add_og_meta_tag('description', text_summary($body_field[0]['#markup']));
+  }
+
+  $featured_image = field_get_items('node', $node, 'field_featured_image', $langcode);
+  if (!empty($featured_image)) {
+    $uri = $featured_image[0]['uri'];
+    _pwds_social_sharing_add_og_meta_tag('image', file_create_url($uri));
+    _pwds_social_sharing_add_og_meta_tag('image:width', $featured_image[0]['width']);
+    _pwds_social_sharing_add_og_meta_tag('image:height', $featured_image[0]['height']);
+  }
+
+  // Add the social sharing buttons to the node content.
+  $node->content['pwds_social_sharing_buttons'] = array(
+    '#theme' => 'pwds_social_sharing_buttons',
+    '#weight' => -1,
+    '#article_title' => check_plain($node->title),
+    '#attached' => array(
+      'js' => array(
+        'type' => 'file',
+        'data' => drupal_get_path('module', 'pwds_social_sharing') . '/js/socialsharing.js',
+        'group' => JS_LIBRARY,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_theme().
+ *
+ * Define a theme function used to render the social sharing buttons.
+ * We provide a default template that can be overwritten.
+ */
+function pwds_social_sharing_theme($existing, $type, $theme, $path) {
+  return array(
+    'pwds_social_sharing_buttons' => array(
+      'template' => 'pwds-social-sharing-buttons',
+      'variables' => array('article_title' => NULL),
+      'path' => drupal_get_path('module', 'pwds_social_sharing') . '/templates/',
+    ),
+  );
+}
+
+/**
+ * Add an opengraph metatag to the site's header.
+ *
+ * @param $label
+ * @param $value
+ */
+function _pwds_social_sharing_add_og_meta_tag($tag, $value) {
+  drupal_add_html_head(array(
+    '#tag' => 'meta',
+    '#attributes' => array(
+      'property' => 'og:' . $tag,
+      'content' => $value,
+    ),
+  ), 'og_' . str_replace(':', '_', $tag));
+}
+
+/**
+ * Determine if social sharing is enabled for the provided content type.
+ *
+ * @param $content_type
+ * @return bool|null
+ */
+function _pwds_social_sharing_is_enabled($content_type) {
+  $compatible_content_types = array(
+    'news',
+    'events',
+  );
+  if (in_array($content_type, $compatible_content_types)) {
+    $var_name = 'pwds_social_sharing_' . $content_type;
+    return variable_get($var_name, TRUE);
+  }
+  else {
+    return FALSE;
+  }
+}

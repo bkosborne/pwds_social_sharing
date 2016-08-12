@@ -1,0 +1,5 @@
+name = PWDS Social Sharing
+description = Display social sharing buttons on the top of each news or event page.
+core = 7.x
+package = PWDS
+version = 7.x-1.0
