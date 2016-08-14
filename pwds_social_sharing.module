@@ -57,7 +57,7 @@ function pwds_social_sharing_node_view($node, $view_mode, $langcode) {
     return;
   }
 
-  _pwds_social_sharing_add_og_meta_tag('site_name', variable_get('site_name'));
+  _pwds_social_sharing_add_og_meta_tag('site_name', check_plain(variable_get('site_name')));
   _pwds_social_sharing_add_og_meta_tag('type', 'article');
   _pwds_social_sharing_add_og_meta_tag('title', check_plain($node->title));
   _pwds_social_sharing_add_og_meta_tag('url', url(drupal_get_path_alias(), array('absolute' => TRUE)));
